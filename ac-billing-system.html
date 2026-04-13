@@ -113,12 +113,12 @@
     #service-items{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
     .service-row{
       display:grid;
-      grid-template-columns:1fr 150px 36px;
+      grid-template-columns:1fr 140px 36px;
       gap:8px;align-items:center;
       background:var(--ice);border:1px solid var(--border);
       border-radius:var(--radius);padding:10px 12px;
     }
-    .service-row select,.service-row input{background:#fff;margin:0}
+    .service-row input{background:#fff;margin:0}
     .remove-row-btn{background:var(--red-light);color:var(--red);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}
     .remove-row-btn:hover{background:#fdd}
     .add-item-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1.5px dashed var(--blue);color:var(--blue);background:transparent;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
@@ -209,7 +209,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label>Customer Name *</label>
-          <input type="text" id="f-name" placeholder="e.g. Rahul Sharma" />
+          <input type="text" id="f-name" placeholder="e.g. Balaji" />
         </div>
         <div class="form-group">
           <label>Phone Number *</label>
@@ -236,7 +236,7 @@
         </div>
         <!-- column labels -->
         <div style="display:grid;grid-template-columns:1fr 150px 36px;gap:8px;padding:0 12px;margin-bottom:5px;">
-          <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Service Type</span>
+          <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Service Description</span>
           <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Amount (₹)</span>
           <span></span>
         </div>
@@ -263,12 +263,7 @@
     <div class="card">
       <div class="search-bar">
         <input type="text" id="search-input" placeholder="🔍  Search name, phone, date..." oninput="renderHistory()" />
-        <select id="filter-service" onchange="renderHistory()">
-          <option value="">All Services</option>
-          <option>Installation</option><option>Repair</option>
-          <option>Gas Filling</option><option>Maintenance</option>
-          <option>Spare Parts</option><option>Cleaning</option>
-        </select>
+        <input type="text" id="filter-service" placeholder="Filter by service..." oninput="renderHistory()" style="width:180px" />
       </div>
       <div class="table-wrap">
         <table>
@@ -358,8 +353,10 @@ function nextInvNumber(){
 }
 
 function serviceBadge(svc){
-  const m={'Installation':'badge-install','Repair':'badge-repair','Gas Filling':'badge-gas','Maintenance':'badge-maint','Spare Parts':'badge-spare','Cleaning':'badge-clean'};
-  return `<span class="badge ${m[svc]||'badge-maint'}">${svc}</span>`;
+  // Generate a consistent color from the service name
+  const colors=['badge-install','badge-repair','badge-gas','badge-maint','badge-spare','badge-clean'];
+  let hash=0; for(let c of (svc||'')) hash=(hash+c.charCodeAt(0))%colors.length;
+  return `<span class="badge ${colors[hash]}">${svc}</span>`;
 }
 
 function itemsListHTML(items){
@@ -394,14 +391,11 @@ function toast(msg){
 function addServiceRow(service='',amount=''){
   rowCounter++;
   const id='srow-'+rowCounter;
-  const opts=SERVICE_OPTIONS.map(s=>`<option value="${s}"${s===service?' selected':''}>${s}</option>`).join('');
   const div=document.createElement('div');
   div.className='service-row'; div.id=id;
   div.innerHTML=`
-    <select onchange="updateTotal()">
-      <option value="">— Select Service —</option>${opts}
-    </select>
-    <input type="number" placeholder="0" min="0" value="${amount}" oninput="updateTotal()" />
+    <input type="text" placeholder="e.g. AC Repair, Gas Filling..." value="${service}" />
+    <input type="number" placeholder="Amount ₹" min="0" value="${amount}" oninput="updateTotal()" />
     <button class="remove-row-btn" onclick="removeRow('${id}')" title="Remove">✕</button>`;
   document.getElementById('service-items').appendChild(div);
   updateTotal();
@@ -413,15 +407,16 @@ function removeRow(id){
 function updateTotal(){
   let t=0;
   document.querySelectorAll('#service-items .service-row').forEach(r=>{
-    t+=Number(r.querySelector('input[type="number"]').value)||0;
+    t+=Number(r.querySelectorAll('input')[1].value)||0;
   });
   document.getElementById('grand-total').textContent=fmt(t);
 }
 function readServiceItems(){
   const items=[];
   document.querySelectorAll('#service-items .service-row').forEach(r=>{
-    const svc=r.querySelector('select').value;
-    const amt=Number(r.querySelector('input[type="number"]').value)||0;
+    const inputs=r.querySelectorAll('input');
+    const svc=inputs[0].value.trim();
+    const amt=Number(inputs[1].value)||0;
     if(svc&&amt>0) items.push({service:svc,amount:amt});
   });
   return items;
@@ -513,10 +508,10 @@ function renderDashboard(){
 /* ── History ── */
 function renderHistory(){
   const q=(document.getElementById('search-input').value||'').toLowerCase();
-  const sf=document.getElementById('filter-service').value;
   let invoices=loadInvoices();
   if(q) invoices=invoices.filter(i=>i.name.toLowerCase().includes(q)||i.phone.includes(q)||i.date.includes(q));
-  if(sf) invoices=invoices.filter(i=>(i.items||[]).some(it=>it.service===sf));
+  const sf=(document.getElementById('filter-service').value||'').toLowerCase();
+  if(sf) invoices=invoices.filter(i=>(i.items||[]).some(it=>it.service.toLowerCase().includes(sf)));
   const tbody=document.getElementById('history-tbody');
   if(!invoices.length){ tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div><p>No invoices found.</p></div></td></tr>`; return; }
   tbody.innerHTML=[...invoices].reverse().map(i=>`
@@ -563,9 +558,17 @@ function renderMonthly(){
   document.getElementById('month-top').textContent=topSvc?topSvc[0]:'—';
   if(chartInstance) chartInstance.destroy();
   const ctx=document.getElementById('monthlyChart').getContext('2d');
+  // Collect unique service names from this month's invoices
+  const svcAmtMap={};
+  invoices.forEach(i=>(i.items||[]).forEach(it=>{
+    svcAmtMap[it.service]=(svcAmtMap[it.service]||0)+Number(it.amount);
+  }));
+  const chartLabels=Object.keys(svcAmtMap);
+  const chartData=chartLabels.map(s=>svcAmtMap[s]);
+  const bgColors=['#4d8fe0','#f59e0b','#14a862','#8b5cf6','#ec4899','#059669','#ef4444','#0891b2'];
   chartInstance=new Chart(ctx,{
     type:'bar',
-    data:{labels:SERVICE_OPTIONS,datasets:[{label:'Revenue (₹)',data:SERVICE_OPTIONS.map(s=>svcAmt[s]||0),backgroundColor:['#4d8fe0','#f59e0b','#14a862','#8b5cf6','#ec4899','#059669'],borderRadius:8,borderSkipped:false}]},
+    data:{labels:chartLabels.length?chartLabels:['No Data'],datasets:[{label:'Revenue (₹)',data:chartData.length?chartData:[0],backgroundColor:bgColors.slice(0,Math.max(chartLabels.length,1)),borderRadius:8,borderSkipped:false}]},
     options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.y)}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₹'+v.toLocaleString('en-IN')},grid:{color:'#f0f3f9'}},x:{grid:{display:false}}}}
   });
   const tbody=document.getElementById('monthly-tbody');
@@ -648,7 +651,7 @@ function downloadPDF(){
 
   // Header
   doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.setTextColor(13,26,53);
-  doc.text('AC Maintenance Services',40,y);
+  doc.text('Balaji AC Maintenance Services',40,y);
   doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(107,114,128);
   doc.text('Professional AC Installation, Repair & Maintenance',40,y+18);
 
@@ -673,7 +676,6 @@ function downloadPDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(107,114,128);
   doc.text('#',50,y+17); doc.text('SERVICE',68,y+17); doc.text('AMOUNT',515,y+17,{align:'right'});
   y+=26;
-  
   // Items
   inv.items.forEach((it,idx)=>{
     doc.setFillColor(255,255,255); doc.rect(40,y,515,28,'F');
